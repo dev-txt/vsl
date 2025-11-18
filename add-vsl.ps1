@@ -52,19 +52,24 @@ if (Test-Path $inputPath -PathType Container) {
 
 Write-Host "Usando vídeo: $videoPath" -ForegroundColor Green
 
-# 4) Descobrir próximo vsl_00X
+# 4) Descobrir próximo vsl_00X (sem usar -f pra evitar erro de formato)
+
 $dirs = Get-ChildItem -Directory -Name | Where-Object { $_ -match '^vsl_(\d+)$' }
 
-if ($dirs.Count -eq 0) {
-    $nextNumber = 1
-} else {
-    $numbers = foreach ($d in $dirs) {
-        if ($d -match '^vsl_(\d+)$') { [int]$Matches[1] }
+$maxNum = 0
+if ($dirs) {
+    foreach ($d in $dirs) {
+        if ($d -match '^vsl_(\d+)$') {
+            $n = [int]$Matches[1]
+            if ($n -gt $maxNum) { $maxNum = $n }
+        }
     }
-    $nextNumber = ($numbers | Measure-Object -Maximum).Maximum + 1
 }
 
-$folderName = ('vsl_{0:D3}' -f $nextNumber)
+$nextNumber = $maxNum + 1
+# pad com zeros na marreta: pega sempre os últimos 3 dígitos
+$folderNumberPadded = ('000' + $nextNumber) -replace '.*(...$)', '$1'
+$folderName = "vsl_$folderNumberPadded"
 $folderPath = Join-Path $repoRoot $folderName
 
 Write-Host "Nova pasta da VSL: $folderName" -ForegroundColor Cyan
