@@ -2,8 +2,10 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>VSL Player</title>
+  <title>📺 VSL Player</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Coloca um arquivo favicon.ico na raiz do repo -->
+  <link rel="icon" href="favicon.ico">
 
   <style>
     html, body {
@@ -16,7 +18,7 @@
     .video-wrapper {
       position: relative;
       width: 100%;
-      height: 100%;
+      height: 100vh;
       background: #000;
       overflow: hidden;
       display: flex;
@@ -48,64 +50,35 @@
     .unmute-button {
       background: #ffc800;
       color: #000;
-      border-radius: 8px;
-      padding: 14px 26px;
+      border-radius: 14px;
+      padding: 18px 32px;
       font-family: Arial, sans-serif;
-      font-weight: bold;
+      font-weight: 700;
       text-transform: uppercase;
       text-align: center;
       cursor: pointer;
       border: 2px solid #000;
       display: inline-flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
       justify-content: center;
       animation: pulse 1.2s infinite;
-      box-shadow: 0 0 0 0 rgba(255, 200, 0, 0.7);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
     }
 
     .unmute-icon {
-      position: relative;
-      width: 40px;
-      height: 30px;
+      font-size: 34px;
       margin-bottom: 4px;
     }
 
-    .unmute-icon .speaker {
-      position: absolute;
-      left: 0;
-      top: 7px;
-      width: 14px;
-      height: 16px;
-      background: #000;
-      clip-path: polygon(0 25%, 55% 0, 55% 100%, 0 75%);
+    .unmute-line-1 {
+      font-size: 15px;
+      letter-spacing: 0.5px;
     }
 
-    .unmute-icon .waves {
-      position: absolute;
-      left: 16px;
-      top: 5px;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      border: 3px solid #000;
-      border-color: transparent #000 transparent transparent;
-      transform: rotate(45deg);
-    }
-
-    .unmute-icon .slash {
-      position: absolute;
-      left: -4px;
-      top: -4px;
-      width: 48px;
-      height: 3px;
-      background: #000;
-      transform: rotate(-35deg);
-    }
-
-    .unmute-button span {
-      display: block;
+    .unmute-line-2 {
+      font-size: 14px;
     }
 
     @keyframes pulse {
@@ -131,13 +104,9 @@
 
   <div class="unmute-overlay" id="unmuteOverlay">
     <div class="unmute-button">
-      <div class="unmute-icon">
-        <div class="speaker"></div>
-        <div class="waves"></div>
-        <div class="slash"></div>
-      </div>
-      <span>¡TU VIDEO YA COMENZÓ!</span>
-      <span>¡HAS CLIC PARA ESCUCHAR!</span>
+      <div class="unmute-icon">🔇</div>
+      <span class="unmute-line-1">¡TU VIDEO YA COMENZÓ!</span>
+      <span class="unmute-line-2">¡HAS CLIC PARA ESCUCHAR!</span>
     </div>
   </div>
 </div>
