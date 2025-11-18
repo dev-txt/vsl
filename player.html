@@ -120,7 +120,7 @@
   const params = new URLSearchParams(window.location.search);
   let videoId = params.get('v') || 'vsl_001';
 
-  const allowed = ['vsl_001', 'vsl_002', 'vsl_003'];
+  const allowed = ['vsl_001', 'vsl_002', 'vsl_003', 'vsl_004']; // ajusta conforme suas pastas
   if (!allowed.includes(videoId)) {
     videoId = 'vsl_001';
   }
@@ -128,8 +128,10 @@
   // como player.html está na raiz, usa caminho relativo
   const src = `${videoId}/index.m3u8`;
 
+  let hls = null;
+
   if (Hls.isSupported()) {
-    const hls = new Hls();
+    hls = new Hls();
     hls.loadSource(src);
     hls.attachMedia(video);
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -141,19 +143,32 @@
   video.muted = true;
   video.play().catch(() => {});
 
-  // clique no overlay: reinicia e desmuta
-  overlay.addEventListener('click', () => {
-    // volta pro início
+  function restartAndUnmute() {
+    // garante que começamos do zero
     try {
       video.currentTime = 0;
     } catch (e) {
-      // se algum browser frescar, ignora
+      // se algum browser reclamar, vida que segue
     }
 
     video.muted = false;
     video.volume = 1;
     video.play().catch(() => {});
     overlay.classList.add('hidden');
+  }
+
+  overlay.addEventListener('click', () => {
+    // se o vídeo já conhece a duração, pode dar seek na boa
+    if (video.readyState >= 1) {
+      restartAndUnmute();
+    } else {
+      // se ainda não carregou metadata, espera e só então reinicia
+      const onLoaded = () => {
+        video.removeEventListener('loadedmetadata', onLoaded);
+        restartAndUnmute();
+      };
+      video.addEventListener('loadedmetadata', onLoaded);
+    }
   });
 </script>
 
