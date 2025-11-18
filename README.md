@@ -146,3 +146,69 @@ A playlist HLS pública da nova VSL será:
     https://dev-txt.github.io/vsl/vsl_004/index.m3u8
 
 Você pode usar essa URL em qualquer player compatível com HLS (por exemplo, usando `hls.js` em uma página própria).
+
+---
+
+## 8. Usando o script automatizado `add-vsl.ps1` (opcional)
+
+Se você quiser automatizar o processo de criação da VSL (detectar o próximo `vsl_00X`, quebrar o vídeo, atualizar o `player.html` e opcionalmente fazer `git add/commit/push`), use o script **`add-vsl.ps1`** na raiz do repositório.
+
+> Este script foi feito para rodar em **Windows / PowerShell**.
+
+### 8.1. Pré-requisitos
+
+- FFmpeg instalado e acessível no `PATH` (veja seção 1.2).
+- Repositório `vsl` clonado localmente (veja seção 2).
+- Arquivo `add-vsl.ps1` salvo na **raiz do repositório** (mesmo lugar do `player.html`).
+
+### 8.2. Passo a passo para usar o script
+
+1. Abra o **PowerShell** e vá até a pasta do repositório:
+
+       cd CAMINHO\PARA\vsl
+
+2. Execute o script:
+
+       .\add-vsl.ps1
+
+3. Quando o script perguntar pelo caminho do vídeo:
+
+   - Você pode **arrastar o arquivo `.mp4`** para dentro da janela do PowerShell, ou  
+   - Digitar o caminho completo do arquivo ou da pasta que contém o `.mp4`.
+
+4. O script irá:
+
+   - Detectar automaticamente qual será a próxima pasta, por exemplo:  
+     `vsl_004`, `vsl_005`, etc.
+   - Criar essa pasta nova dentro do repositório.
+   - Rodar o `ffmpeg` para quebrar o vídeo em HLS, gerando:
+     - `vsl_00X/index.m3u8`
+     - `vsl_00X/segment_000.ts`, `segment_001.ts`, ...
+   - Atualizar o arquivo `player.html`, adicionando a nova pasta na linha:
+
+         const allowed = ['vsl_001', 'vsl_002', ..., 'vsl_00X'];
+
+   - Perguntar se você deseja que ele faça automaticamente:
+     - `git add`
+     - `git commit`
+     - `git push origin main`
+
+5. Ao final, o script mostra as URLs prontas para uso, por exemplo:
+
+   - Playlist HLS:
+
+         https://dev-txt.github.io/vsl/vsl_00X/index.m3u8
+
+   - Player com botão amarelo:
+
+         https://dev-txt.github.io/vsl/player.html?v=vsl_00X
+
+### 8.3. Quando usar o script
+
+- Use o script `add-vsl.ps1` quando quiser:
+  - Seguir sempre o mesmo padrão de numeração (`vsl_001`, `vsl_002`, …) sem se preocupar em calcular o próximo número.
+  - Evitar editar o `player.html` manualmente.
+  - Diminuir a chance de errar comandos de `ffmpeg` ou de `git`.
+
+Se preferir controle total, siga as seções 3 a 7 manualmente.  
+Se preferir rapidez, use a seção 8 e deixe o script fazer o trabalho pesado.
