@@ -115,68 +115,77 @@
 <script>
   const video = document.getElementById('video');
   const overlay = document.getElementById('unmuteOverlay');
+  const btn     = overlay.querySelector('.unmute-button');
+  const icon    = overlay.querySelector('.unmute-icon');
+  const line1   = overlay.querySelector('.unmute-line-1');
+  const line2   = overlay.querySelector('.unmute-line-2');
 
-  // pega ?v=vsl_001, ?v=vsl_002, ?v=vsl_003
+  // pega ?v=vsl_001, ?v=vsl_002, etc
   const params = new URLSearchParams(window.location.search);
-  let videoId = params.get('v') || 'vsl_001';
+  const requestedId = params.get('v');
 
-  const allowed = ['vsl_001', 'vsl_002', 'vsl_003']; // ajusta conforme suas pastas
-  if (!allowed.includes(videoId)) {
-    videoId = 'vsl_001';
-  }
+  // *** IMPORTANTE: esta linha é atualizada pelo script add-vsl.ps1 ***
+  const allowed = ['vsl_001', 'vsl_002', 'vsl_003'];
 
-  // como player.html está na raiz, usa caminho relativo
-  const src = `${videoId}/index.m3u8`;
+  // valida o ID
+  if (!requestedId || !allowed.includes(requestedId)) {
+    // ID inválido: mostra erro e não carrega vídeo nenhum
+    if (icon)  icon.textContent  = '⚠️';
+    if (line1) line1.textContent = 'VIDEO NO ENCONTRADO';
+    if (line2) line2.textContent = 'Revise el enlace o ID vsl_00X';
 
-  let hls = null;
+    // desliga click de unmute / restart
+    btn.style.cursor = 'default';
+    btn.onclick = null;
+    overlay.classList.remove('hidden');
 
-  if (Hls.isSupported()) {
-    hls = new Hls();
-    hls.loadSource(src);
-    hls.attachMedia(video);
-  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    // Safari, iOS
-    video.src = src;
-  }
+    // esconde o elemento <video> pra não aparecer tela preta
+    video.style.display = 'none';
 
-  // autoplay mudo
-  video.muted = true;
-  video.play().catch(() => {});
+    // não segue para configurar HLS
+  } else {
+    const videoId = requestedId;
+    const src = `${videoId}/index.m3u8`;
 
-  function restartAndUnmute() {
-    // garante que começamos do zero
-    try {
-      video.currentTime = 0;
-    } catch (e) {
-      // se algum browser reclamar, vida que segue
+    let hls = null;
+
+    if (Hls.isSupported()) {
+      hls = new Hls();
+      hls.loadSource(src);
+      hls.attachMedia(video);
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Safari, iOS
+      video.src = src;
     }
 
-    video.muted = false;
-    video.volume = 1;
+    // autoplay mudo
+    video.muted = true;
     video.play().catch(() => {});
-    overlay.classList.add('hidden');
-  }
 
-  overlay.addEventListener('click', () => {
-    // se o vídeo já conhece a duração, pode dar seek na boa
-    if (video.readyState >= 1) {
-      restartAndUnmute();
-    } else {
-      // se ainda não carregou metadata, espera e só então reinicia
-      const onLoaded = () => {
-        video.removeEventListener('loadedmetadata', onLoaded);
-        restartAndUnmute();
-      };
-      video.addEventListener('loadedmetadata', onLoaded);
+    function restartAndUnmute() {
+      try { video.pause(); } catch (e) {}
+
+      try { video.currentTime = 0; } catch (e) {}
+
+      video.muted = false;
+      video.volume = 1;
+      video.play().catch(() => {});
+      overlay.classList.add('hidden');
     }
-  });
+
+    overlay.addEventListener('click', () => {
+      if (video.readyState >= 1) {
+        restartAndUnmute();
+      } else {
+        const onLoaded = () => {
+          video.removeEventListener('loadedmetadata', onLoaded);
+          restartAndUnmute();
+        };
+        video.addEventListener('loadedmetadata', onLoaded);
+      }
+    });
+  }
 </script>
 
 </body>
 </html>
-
-
-
-
-
-
