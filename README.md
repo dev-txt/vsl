@@ -167,11 +167,11 @@ Para automatizar o processo (detectar a próxima pasta `vsl_00X`, quebrar o víd
 
 1. Abra o **PowerShell** e vá até a pasta do repositório:
 
-       cd CAMINHO\PARAsl
+       cd CAMINHO\PARA\vsl
 
 2. Execute o script:
 
-       .dd-vsl.ps1
+       .\add-vsl.ps1
 
 3. O script mostrará um menu:
 
