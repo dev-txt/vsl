@@ -1,6 +1,9 @@
 # Como adicionar um novo vídeo (VSL) ao repositório (Windows)
 
-Este guia mostra como, no **Windows**, pegar um arquivo `.mp4`, quebrar em HLS (`.m3u8` + `.ts`) com **FFmpeg** e publicar como uma nova VSL no repositório `dev-txt/vsl`.
+Este guia mostra como, no **Windows**, pegar um arquivo `.mp4`, quebrar em HLS (`.m3u8` + `.ts`) com **FFmpeg** e publicar como uma nova VSL no repositório `dev-txt/vsl`, usando:
+
+1. Modo recomendado: **script `add-vsl.ps1`** (automático: ADD/DELETE + update do `player.html`)
+2. Modo manual: comandos diretos (para quem quiser controle total)
 
 ---
 
@@ -44,9 +47,140 @@ No PowerShell ou Prompt:
 
 ---
 
-## 3. Preparar o novo vídeo (modo manual)
+## 3. Modo recomendado: usando o script `add-vsl.ps1` (ADD & DELETE)
 
-1. Escolha um nome de pasta para a nova VSL, seguindo o padrão:
+O script `add-vsl.ps1` automatiza:
+
+- Descobrir o próximo `vsl_00X`
+- Quebrar o vídeo em HLS
+- Atualizar o `player.html` (`const allowed = [...]`)
+- Opcionalmente rodar `git add/commit/push`
+- Deletar uma VSL existente (pasta + remoção da lista `allowed`)
+
+> O script foi feito para rodar em **Windows / PowerShell**.
+
+### 3.1. Pré-requisitos específicos do script
+
+- FFmpeg instalado e acessível no `PATH` (veja seção 1.2).
+- Repositório `vsl` clonado localmente (veja seção 2).
+- Arquivo `add-vsl.ps1` salvo na **raiz do repositório** (mesmo lugar do `player.html`).
+
+### 3.2. Executando o script
+
+No PowerShell:
+
+    cd CAMINHO\PARA\vsl
+    .\add-vsl.ps1
+
+O script mostrará um menu:
+
+    === VSL TOOL ===
+    1) Adicionar nova VSL
+    2) Deletar VSL existente
+
+Escolha `1` ou `2` e pressione Enter.
+
+---
+
+### 3.3. Opção 1 – Adicionar nova VSL via script
+
+Fluxo quando você escolhe **1) Adicionar nova VSL**:
+
+1. O script pergunta o caminho do vídeo:
+
+   - Você pode **arrastar o arquivo `.mp4`** para dentro da janela do PowerShell, ou  
+   - Digitar o caminho completo do arquivo ou da pasta que contém o `.mp4`  
+     (se for pasta, ele usa o primeiro `.mp4` encontrado na pasta).
+
+2. O script então:
+
+   - Detecta automaticamente qual será a próxima pasta:
+     - `vsl_001`, `vsl_002`, `vsl_003`, `vsl_004`, ...
+   - Cria a pasta nova dentro do repositório, por exemplo: `vsl_004`
+   - Roda o FFmpeg e gera:
+     - `vsl_004/index.m3u8`
+     - `vsl_004/segment_000.ts`, `segment_001.ts`, ...
+   - Atualiza o `player.html`, adicionando a pasta na linha:
+
+         const allowed = ['vsl_001', 'vsl_002', ..., 'vsl_00X'];
+
+   - Pergunta se você quer que ele faça automaticamente:
+     - `git add`
+     - `git commit`
+     - `git push origin main`
+
+3. No final, o script mostra as URLs prontas, por exemplo:
+
+   - Playlist HLS:
+
+         https://dev-txt.github.io/vsl/vsl_00X/index.m3u8
+
+   - Player com botão de unmute:
+
+         https://dev-txt.github.io/vsl/player.html?v=vsl_00X
+
+---
+
+### 3.4. Opção 2 – Deletar VSL existente via script
+
+Fluxo quando você escolhe **2) Deletar VSL existente**:
+
+1. O script lista as pastas de VSL:
+
+       Pastas de VSL disponiveis:
+        - vsl_001
+        - vsl_002
+        - vsl_003
+        - vsl_004
+
+2. Ele pergunta qual VSL remover:
+
+       Digite o nome exato da VSL a deletar (ex: vsl_004)
+
+3. PedE uma confirmação:
+
+       Tem certeza que deseja deletar vsl_004? (s/n)
+
+4. Se você confirmar com `s`:
+
+   - Remove a pasta física, por exemplo `vsl_004`
+   - Atualiza o `player.html`, removendo essa VSL da lista:
+
+         const allowed = ['vsl_001', 'vsl_002', 'vsl_003', 'vsl_004'];
+
+     ficando, por exemplo:
+
+         const allowed = ['vsl_001', 'vsl_002', 'vsl_003'];
+
+   - Pergunta se você quer rodar:
+     - `git add`
+     - `git commit`
+     - `git push origin main`
+
+5. No final, mostra algo como:
+
+       Remocao de vsl_004 concluida.
+
+### 3.5. Quando faz sentido usar o script
+
+Use o `add-vsl.ps1` quando quiser:
+
+- Não esquentar a cabeça com numeração (`vsl_001`, `vsl_002`, …)
+- Evitar editar `player.html` na mão
+- Reduzir chance de erro em comando de FFmpeg / Git
+- Deletar VSLs antigas de forma consistente (pasta + `allowed`)
+
+Se quiser controle manual, use a próxima seção.
+
+---
+
+## 4. Modo manual: sem script
+
+Se você prefere fazer tudo na mão (ou se o script não estiver disponível), dá para fazer o processo inteiro manualmente.
+
+### 4.1. Preparar o novo vídeo
+
+1. Escolha o nome da pasta da nova VSL:
 
    - `vsl_001`
    - `vsl_002`
@@ -54,42 +188,42 @@ No PowerShell ou Prompt:
    - `vsl_004`
    - etc.
 
-2. Copie o arquivo `.mp4` para a **raiz do repositório** (mesma pasta onde está o `player.html`), por exemplo:
+2. Copie o `.mp4` para a **raiz do repositório** (mesma pasta do `player.html`), por exemplo:
 
    - `meu_video.mp4`
 
-3. Crie a pasta da nova VSL (exemplo: `vsl_004`):
+3. Crie a pasta da nova VSL (exemplo `vsl_004`):
 
-    mkdir vsl_004
+       mkdir vsl_004
 
 ---
 
-## 4. Quebrar o vídeo em HLS com FFmpeg (comando em 1 linha, modo manual)
+### 4.2. Quebrar o vídeo em HLS com FFmpeg (1 linha)
 
-Ainda na raiz do repositório (onde está `meu_video.mp4`), rode:
+Na raiz do repositório, rode:
 
     ffmpeg -i meu_video.mp4 -codec:v libx264 -codec:a aac -hls_time 6 -hls_playlist_type vod -hls_segment_filename "vsl_004/segment_%03d.ts" vsl_004/index.m3u8
 
-Esse comando vai:
+Isso vai:
 
-- Ler o arquivo de entrada `meu_video.mp4`
-- Criar a playlist HLS em: `vsl_004/index.m3u8`
-- Gerar vários segmentos `.ts`:
+- Ler `meu_video.mp4`
+- Criar a playlist HLS: `vsl_004/index.m3u8`
+- Gerar os segmentos:
 
   - `vsl_004/segment_000.ts`
   - `vsl_004/segment_001.ts`
   - `vsl_004/segment_002.ts`
   - ...
 
-Confirme depois:
+Confere depois:
 
-- Dentro de `vsl_004` deve existir:
-  - 1 arquivo `index.m3u8`
-  - vários arquivos `segment_XXX.ts`
+- Em `vsl_004` deve ter:
+  - `index.m3u8`
+  - vários `segment_XXX.ts`
 
 ---
 
-## 5. Atualizar o `player.html` para reconhecer a nova VSL (modo manual)
+### 4.3. Atualizar o `player.html` para reconhecer a nova VSL
 
 Abra o arquivo `player.html` na raiz do repositório e procure a linha:
 
@@ -103,7 +237,7 @@ Salve o arquivo.
 
 ---
 
-## 6. Comitar e enviar as mudanças para o GitHub (modo manual)
+### 4.4. Comitar e enviar as mudanças para o GitHub
 
 Na raiz do repositório:
 
@@ -116,161 +250,38 @@ O GitHub Pages vai atualizar o site automaticamente após o `push`.
 
 ---
 
-## 7. Como usar a nova VSL
+## 5. Como usar a VSL publicada
 
-### 7.1. Via iframe (usando `player.html`)
+### 5.1. Via iframe (usando `player.html`)
 
-A URL base do site é:
+URL base do site:
 
     https://dev-txt.github.io/vsl/
 
-A nova VSL ficará acessível em:
+URL do player para uma VSL específica (exemplo `vsl_004`):
 
     https://dev-txt.github.io/vsl/player.html?v=vsl_004
 
 Exemplo de uso com `<iframe>` em qualquer página HTML:
 
-```html
-<iframe
-  src="https://dev-txt.github.io/vsl/player.html?v=vsl_004"
-  width="100%"
-  height="360"
-  frameborder="0"
-  allow="autoplay; fullscreen"
-  allowfullscreen>
-</iframe>
-```
+    <iframe
+      src="https://dev-txt.github.io/vsl/player.html?v=vsl_004"
+      width="100%"
+      height="360"
+      frameborder="0"
+      allow="autoplay; fullscreen"
+      allowfullscreen>
+    </iframe>
 
-### 7.2. Via player próprio (embed direto em outro player HLS)
+### 5.2. Via player próprio (HLS direto)
 
-A playlist HLS pública da nova VSL será:
+Playlist HLS pública (exemplo `vsl_004`):
 
     https://dev-txt.github.io/vsl/vsl_004/index.m3u8
 
-Você pode usar essa URL em qualquer player compatível com HLS (por exemplo, usando `hls.js` em uma página própria).
+Você pode usar essa URL em qualquer player compatível com HLS (`hls.js`, players nativos, etc).
 
 ---
 
-## 8. Usando o script `add-vsl.ps1` (adicionar e deletar VSLs)
-
-Para automatizar o processo (detectar a próxima pasta `vsl_00X`, quebrar o vídeo, atualizar o `player.html` e opcionalmente fazer `git add/commit/push`, além de **deletar** VSLs existentes), use o script **`add-vsl.ps1`** na raiz do repositório.
-
-> Este script foi feito para rodar em **Windows / PowerShell**.
-
-### 8.1. Pré-requisitos
-
-- FFmpeg instalado e acessível no `PATH` (veja seção 1.2).
-- Repositório `vsl` clonado localmente (veja seção 2).
-- Arquivo `add-vsl.ps1` salvo na **raiz do repositório** (mesmo lugar do `player.html`).
-
-### 8.2. Executando o script
-
-1. Abra o **PowerShell** e vá até a pasta do repositório:
-
-       cd CAMINHO\PARA\vsl
-
-2. Execute o script:
-
-       .\add-vsl.ps1
-
-3. O script mostrará um menu:
-
-       === VSL TOOL ===
-       1) Adicionar nova VSL
-       2) Deletar VSL existente
-
-Escolha a opção desejada digitando `1` ou `2` e pressionando Enter.
-
----
-
-### 8.3. Modo 1 – Adicionar nova VSL via script
-
-Quando você escolher a opção `1` (Adicionar nova VSL), o script irá:
-
-1. Perguntar pelo caminho do vídeo:
-
-   - Você pode **arrastar o arquivo `.mp4`** para dentro da janela do PowerShell, ou  
-   - Digitar o caminho completo do arquivo ou da pasta que contém o `.mp4` (ele usa o primeiro `.mp4` encontrado na pasta).
-
-2. Em seguida, o script irá:
-
-   - Detectar automaticamente qual será a próxima pasta, por exemplo:  
-     `vsl_004`, `vsl_005`, etc.
-   - Criar essa pasta nova dentro do repositório.
-   - Rodar o `ffmpeg` para quebrar o vídeo em HLS, gerando:
-     - `vsl_00X/index.m3u8`
-     - `vsl_00X/segment_000.ts`, `segment_001.ts`, ...
-   - Atualizar o arquivo `player.html`, adicionando a nova pasta na linha:
-
-         const allowed = ['vsl_001', 'vsl_002', ..., 'vsl_00X'];
-
-   - Perguntar se você deseja que ele faça automaticamente:
-     - `git add`
-     - `git commit`
-     - `git push origin main`
-
-3. Ao final, o script mostra as URLs prontas para uso, por exemplo:
-
-   - Playlist HLS:
-
-         https://dev-txt.github.io/vsl/vsl_00X/index.m3u8
-
-   - Player com botão de unmute:
-
-         https://dev-txt.github.io/vsl/player.html?v=vsl_00X
-
----
-
-### 8.4. Modo 2 – Deletar VSL existente via script
-
-Quando você escolher a opção `2` (Deletar VSL existente), o script irá:
-
-1. Listar todas as pastas de VSL existentes no repositório, por exemplo:
-
-       Pastas de VSL disponiveis:
-        - vsl_001
-        - vsl_002
-        - vsl_003
-        - vsl_004
-
-2. Perguntar qual VSL você deseja remover:
-
-       Digite o nome exato da VSL a deletar (ex: vsl_004)
-
-3. Pedir uma confirmação:
-
-       Tem certeza que deseja deletar vsl_004? (s/n)
-
-4. Se você confirmar com `s`:
-
-   - O script irá:
-     - Remover a pasta física da VSL escolhida (por exemplo, `vsl_004`).
-     - Atualizar o `player.html`, removendo essa VSL da linha:
-
-           const allowed = ['vsl_001', 'vsl_002', 'vsl_003', 'vsl_004'];
-
-       ficando, por exemplo:
-
-           const allowed = ['vsl_001', 'vsl_002', 'vsl_003'];
-
-     - Perguntar se você deseja que ele faça automaticamente:
-       - `git add`
-       - `git commit`
-       - `git push origin main`
-
-5. Ao final, o script informa que a remoção foi concluída:
-
-       Remocao de vsl_004 concluida.
-
----
-
-### 8.5. Quando usar o script
-
-- Use o script `add-vsl.ps1` quando quiser:
-  - Seguir sempre o mesmo padrão de numeração (`vsl_001`, `vsl_002`, …) sem se preocupar em calcular o próximo número.
-  - Evitar editar o `player.html` manualmente.
-  - Diminuir a chance de errar comandos de `ffmpeg` ou de `git`.
-  - Remover uma VSL antiga (pasta + referência no `player.html`) de forma consistente.
-
-Se preferir controle total, siga as seções 3 a 7 manualmente.  
-Se preferir rapidez (e menos chance de vacilo), use a seção 8 e deixe o script fazer o trabalho pesado.
+Modo preguiçoso e eficiente: seção 3 (script).
+Modo raiz e manual: seção 4 (sem script).
