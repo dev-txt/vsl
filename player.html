@@ -155,33 +155,46 @@
   const allowed = ['vsl_001', 'vsl_002', 'vsl_003'];
 
   // ===== Config da barra fake =====
-  // A barra vai se comportar como se o vídeo tivesse 2 minutos
-  const FAKE_DURATION_SECONDS = 120; // 2 min
-  let THRESH = 0.8;                  // recalculado quando souber a duração real
+  // Regra:
+  // - dur <= 2min: barra honesta
+  // - 2min < dur <= 5min: finge 2min
+  // - dur > 5min: finge 40% do real (proporção 5->2)
+  let THRESH = 0.8; // recalculado quando souber a duração real
 
   function updateFakeThreshold() {
     const dur = video.duration;
-    if (dur && isFinite(dur) && dur > 0) {
-      THRESH = FAKE_DURATION_SECONDS / dur;
+    if (!dur || !isFinite(dur) || dur <= 0) return;
 
-      // limita para não ficar absurdo
-      THRESH = Math.min(Math.max(THRESH, 0.2), 0.9);
+    let fakeDur;
+
+    if (dur <= 120) {
+      fakeDur = dur;         // honesto em vídeo curto
+    } else if (dur <= 300) {
+      fakeDur = 120;         // finge 2 min
+    } else {
+      fakeDur = dur * 0.40;  // finge 40% do real
     }
+
+    THRESH = fakeDur / dur;
+
+    // guarda-chuva anti-loucura
+    THRESH = Math.min(Math.max(THRESH, 0.2), 0.9);
   }
 
   function fakeProgress(real) {
     if (real <= 0) return 0;
 
+    // se THRESH ~ 1 (vídeo curto), progresso real
+    if (THRESH >= 0.999) return real;
+
     const TARGET = 0.97; // quanto da barra já encheu no THRESH
 
     if (real < THRESH) {
-      // acelera até quase o fim
-      return (real / THRESH) * TARGET;
+      return (real / THRESH) * TARGET; // acelera até quase o fim
     }
 
-    // depois disso, vai beeem lento até 100%
     const tailReal = (real - THRESH) / (1 - THRESH); // 0..1
-    return TARGET + (tailReal * (1 - TARGET));
+    return TARGET + (tailReal * (1 - TARGET));       // lento no fim
   }
 
   let rafId = null;
@@ -254,8 +267,8 @@
 
     function restartAndUnmute() {
       try { video.pause(); } catch (e) {}
-
       try { video.currentTime = 0; } catch (e) {}
+
       resetProgress();
 
       video.muted = false;
@@ -263,7 +276,6 @@
       video.play().catch(() => {});
       overlay.classList.add('hidden');
 
-      // garante THRESH certo depois do restart
       updateFakeThreshold();
     }
 
