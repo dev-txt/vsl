@@ -32,22 +32,24 @@
       background: #000;
     }
 
-    /* ===== Progress bar fake estilo vturb ===== */
+    /* ===== Progress bar fake estilo vturb (VISÍVEL) ===== */
     .progress-wrap {
       position: absolute;
       left: 0;
       right: 0;
       bottom: 0;
-      height: 15px;               /* altura pedida */
-      background: rgba(255,255,255,0.12);
-      z-index: 5;
+      height: 15px;                 /* altura pedida */
+      background: rgba(0,0,0,0.65); /* trilha bem visível */
+      border-top: 1px solid rgba(255,255,255,0.15);
+      z-index: 9999;                /* acima de tudo */
+      pointer-events: none;
     }
     .progress-bar {
       height: 100%;
       width: 0%;
-      background: #FB7185;        /* cor pedida */
+      background: #FB7185;          /* cor pedida */
       transform-origin: left center;
-      transition: width 0.15s linear;
+      transition: width 0.12s linear;
     }
 
     .unmute-overlay {
@@ -160,11 +162,10 @@
   function fakeProgress(real) {
     if (real <= 0) return 0;
     if (real < 0.80) {
-      return (real / 0.80) * 0.95;   // acelera no começo
+      return (real / 0.80) * 0.95;
     }
-    // últimos 20% reais viram só 5% fake
     const tailReal = (real - 0.80) / 0.20; // 0..1
-    return 0.95 + (tailReal * 0.05);       // lenta no fim
+    return 0.95 + (tailReal * 0.05);
   }
 
   let rafId = null;
@@ -213,6 +214,11 @@
       hls = new Hls();
       hls.loadSource(src);
       hls.attachMedia(video);
+
+      // quando o HLS tiver manifest pronto, já inicia o progresso
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        startProgressLoop();
+      });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = src;
     }
@@ -221,7 +227,7 @@
     video.muted = true;
     video.play().catch(() => {});
 
-    // quando carregar metadata, inicia barra fake
+    // redundância saudável: se metadata/play disparar, roda também
     video.addEventListener('loadedmetadata', startProgressLoop);
     video.addEventListener('play', startProgressLoop);
 
