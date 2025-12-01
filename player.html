@@ -1,10 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <title>📺 VSL Player</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Coloca um arquivo favicon.ico na raiz do repo -->
   <link rel="icon" href="favicon.ico">
 
   <style>
@@ -31,6 +30,26 @@
       height: 100%;
       object-fit: cover;
       background: #000;
+    }
+
+    /* ===== Progress bar fake estilo vturb (VISÍVEL) ===== */
+    .progress-wrap {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 15px;                 /* altura pedida */
+      background: rgba(0,0,0,0.65); /* trilha bem visível */
+      border-top: 1px solid rgba(255,255,255,0.15);
+      z-index: 9999;                /* acima de tudo */
+      pointer-events: none;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #FB7185;          /* cor pedida */
+      transform-origin: left center;
+      transition: width 0.12s linear;
     }
 
     .unmute-overlay {
@@ -102,6 +121,11 @@
 <div class="video-wrapper">
   <video id="video" autoplay muted playsinline></video>
 
+  <!-- barra de progresso fake -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
   <div class="unmute-overlay" id="unmuteOverlay">
     <div class="unmute-button">
       <div class="unmute-icon">🔇</div>
@@ -120,6 +144,9 @@
   const line1   = overlay.querySelector('.unmute-line-1');
   const line2   = overlay.querySelector('.unmute-line-2');
 
+  const progressBar  = document.getElementById('progressBar');
+  const progressWrap = document.getElementById('progressWrap');
+
   // pega ?v=vsl_001, ?v=vsl_002, etc
   const params = new URLSearchParams(window.location.search);
   const requestedId = params.get('v');
@@ -127,22 +154,85 @@
   // *** IMPORTANTE: esta linha é atualizada pelo script add-vsl.ps1 ***
   const allowed = ['vsl_001', 'vsl_002', 'vsl_003', 'vsl_004'];
 
+  // ===== Config da barra fake =====
+  // Regra:
+  // - dur <= 2min: barra honesta
+  // - 2min < dur <= 5min: finge 2min
+  // - dur > 5min: finge 40% do real (proporção 5->2)
+  let THRESH = 0.8; // recalculado quando souber a duração real
+
+  function updateFakeThreshold() {
+    const dur = video.duration;
+    if (!dur || !isFinite(dur) || dur <= 0) return;
+
+    let fakeDur;
+
+    if (dur <= 120) {
+      fakeDur = dur;         // honesto em vídeo curto
+    } else if (dur <= 300) {
+      fakeDur = 120;         // finge 2 min
+    } else {
+      fakeDur = dur * 0.40;  // finge 40% do real
+    }
+
+    THRESH = fakeDur / dur;
+
+    // guarda-chuva anti-loucura
+    THRESH = Math.min(Math.max(THRESH, 0.2), 0.9);
+  }
+
+  function fakeProgress(real) {
+    if (real <= 0) return 0;
+
+    // se THRESH ~ 1 (vídeo curto), progresso real
+    if (THRESH >= 0.999) return real;
+
+    const TARGET = 0.97; // quanto da barra já encheu no THRESH
+
+    if (real < THRESH) {
+      return (real / THRESH) * TARGET; // acelera até quase o fim
+    }
+
+    const tailReal = (real - THRESH) / (1 - THRESH); // 0..1
+    return TARGET + (tailReal * (1 - TARGET));       // lento no fim
+  }
+
+  let rafId = null;
+  function startProgressLoop() {
+    if (rafId) cancelAnimationFrame(rafId);
+
+    const tick = () => {
+      const dur = video.duration;
+      const cur = video.currentTime;
+
+      if (dur && isFinite(dur) && dur > 0) {
+        const real = Math.min(cur / dur, 1);
+        const fake = fakeProgress(real);
+        progressBar.style.width = (fake * 100).toFixed(3) + '%';
+      }
+
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function resetProgress() {
+    progressBar.style.width = '0%';
+  }
+
   // valida o ID
   if (!requestedId || !allowed.includes(requestedId)) {
-    // ID inválido: mostra erro e não carrega vídeo nenhum
     if (icon)  icon.textContent  = '⚠️';
     if (line1) line1.textContent = 'VIDEO NO ENCONTRADO';
     if (line2) line2.textContent = 'Revise el enlace o ID vsl_00X';
 
-    // desliga click de unmute / restart
     btn.style.cursor = 'default';
     btn.onclick = null;
     overlay.classList.remove('hidden');
 
-    // esconde o elemento <video> pra não aparecer tela preta
     video.style.display = 'none';
-
-    // não segue para configurar HLS
+    progressWrap.style.display = 'none';
   } else {
     const videoId = requestedId;
     const src = `${videoId}/index.m3u8`;
@@ -153,8 +243,13 @@
       hls = new Hls();
       hls.loadSource(src);
       hls.attachMedia(video);
+
+      // quando o manifest estiver pronto, calcula THRESH e inicia loop
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        updateFakeThreshold();
+        startProgressLoop();
+      });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Safari, iOS
       video.src = src;
     }
 
@@ -162,15 +257,26 @@
     video.muted = true;
     video.play().catch(() => {});
 
+    // quando metadata estiver pronta, recalcula THRESH e inicia loop
+    video.addEventListener('loadedmetadata', () => {
+      updateFakeThreshold();
+      startProgressLoop();
+    });
+
+    video.addEventListener('play', startProgressLoop);
+
     function restartAndUnmute() {
       try { video.pause(); } catch (e) {}
-
       try { video.currentTime = 0; } catch (e) {}
+
+      resetProgress();
 
       video.muted = false;
       video.volume = 1;
       video.play().catch(() => {});
       overlay.classList.add('hidden');
+
+      updateFakeThreshold();
     }
 
     overlay.addEventListener('click', () => {
