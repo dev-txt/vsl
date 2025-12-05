@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>📺 VSL Player</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="favicon.ico">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      height: 100%;
+    }
+
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      background: #000;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+    }
+
+    /* ===== Progress bar fake estilo vturb (VISÍVEL) ===== */
+    .progress-wrap {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 15px;                 /* altura pedida */
+      background: rgba(0,0,0,0.3); /* trilha mais transparente */
+      border-top: 1px solid rgba(255,255,255,0.1);
+      z-index: 9999;                /* acima de tudo */
+      pointer-events: none;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: rgba(251, 113, 133, 0.7); /* rosa semi-transparente */
+      transform-origin: left center;
+      transition: width 0.12s linear;
+    }
+
+    .unmute-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.35);
+      z-index: 10;
+    }
+
+    .unmute-overlay.hidden {
+      display: none;
+    }
+
+    .unmute-button {
+      background: #ffc800;
+      color: #000;
+      border-radius: 14px;
+      padding: 18px 32px;
+      font-family: Arial, sans-serif;
+      font-weight: 700;
+      text-transform: uppercase;
+      text-align: center;
+      cursor: pointer;
+      border: 2px solid #000;
+      display: inline-flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: center;
+      justify-content: center;
+      animation: pulse 1.2s infinite;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    .unmute-icon {
+      font-size: 34px;
+      margin-bottom: 4px;
+    }
+
+    .unmute-line-1 {
+      font-size: 15px;
+      letter-spacing: 0.5px;
+    }
+
+    .unmute-line-2 {
+      font-size: 14px;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 200, 0, 0.7);
+      }
+      70% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 16px rgba(255, 200, 0, 0);
+      }
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 200, 0, 0);
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="video-wrapper">
+  <video id="video" autoplay muted playsinline></video>
+
+  <!-- barra de progresso fake -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <div class="unmute-overlay" id="unmuteOverlay">
+    <div class="unmute-button">
+      <div class="unmute-icon">🔇</div>
+      <span class="unmute-line-1">¡TU VIDEO YA COMENZÓ!</span>
+      <span class="unmute-line-2">¡HAS CLIC PARA ESCUCHAR!</span>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+  const video = document.getElementById('video');
+  const overlay = document.getElementById('unmuteOverlay');
+  const btn     = overlay.querySelector('.unmute-button');
+  const icon    = overlay.querySelector('.unmute-icon');
+  const line1   = overlay.querySelector('.unmute-line-1');
+  const line2   = overlay.querySelector('.unmute-line-2');
+
+  const progressBar  = document.getElementById('progressBar');
+  const progressWrap = document.getElementById('progressWrap');
+
+  // pega ?v=vsl_001, ?v=vsl_002, etc
+  const params = new URLSearchParams(window.location.search);
+  const requestedId = params.get('v');
+
+  // *** IMPORTANTE: esta linha é atualizada pelo script add-vsl.ps1 ***
+  const allowed = ['vsl_001', 'vsl_002', 'vsl_003', 'vsl_004'];
+
+  // ===== Config da barra fake =====
+  // Regra:
+  // - dur <= 2min: barra honesta
+  // - 2min < dur <= 5min: finge 2min
+  // - dur > 5min: finge 40% do real (proporção 5->2)
+  let THRESH = 0.8; // recalculado quando souber a duração real
+
+  function updateFakeThreshold() {
+    const dur = video.duration;
+    if (!dur || !isFinite(dur) || dur <= 0) return;
+
+    let fakeDur;
+
+    if (dur <= 120) {
+      fakeDur = dur;         // honesto em vídeo curto
+    } else if (dur <= 300) {
+      fakeDur = 120;         // finge 2 min
+    } else {
+      fakeDur = dur * 0.40;  // finge 40% do real
+    }
+
+    THRESH = fakeDur / dur;
+
+    // guarda-chuva anti-loucura
+    THRESH = Math.min(Math.max(THRESH, 0.2), 0.9);
+  }
+
+  function fakeProgress(real) {
+    if (real <= 0) return 0;
+
+    // se THRESH ~ 1 (vídeo curto), progresso real
+    if (THRESH >= 0.999) return real;
+
+    const TARGET = 0.97; // quanto da barra já encheu no THRESH
+
+    if (real < THRESH) {
+      return (real / THRESH) * TARGET; // acelera até quase o fim
+    }
+
+    const tailReal = (real - THRESH) / (1 - THRESH); // 0..1
+    return TARGET + (tailReal * (1 - TARGET));       // lento no fim
+  }
+
+  let rafId = null;
+  function startProgressLoop() {
+    if (rafId) cancelAnimationFrame(rafId);
+
+    const tick = () => {
+      const dur = video.duration;
+      const cur = video.currentTime;
+
+      if (dur && isFinite(dur) && dur > 0) {
+        const real = Math.min(cur / dur, 1);
+        const fake = fakeProgress(real);
+        progressBar.style.width = (fake * 100).toFixed(3) + '%';
+      }
+
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function resetProgress() {
+    progressBar.style.width = '0%';
+  }
+
+  // valida o ID
+  if (!requestedId || !allowed.includes(requestedId)) {
+    if (icon)  icon.textContent  = '⚠️';
+    if (line1) line1.textContent = 'VIDEO NO ENCONTRADO';
+    if (line2) line2.textContent = 'Revise el enlace o ID vsl_00X';
+
+    btn.style.cursor = 'default';
+    btn.onclick = null;
+    overlay.classList.remove('hidden');
+
+    video.style.display = 'none';
+    progressWrap.style.display = 'none';
+  } else {
+    const videoId = requestedId;
+    const src = `${videoId}/index.m3u8`;
+
+    let hls = null;
+
+    if (Hls.isSupported()) {
+      hls = new Hls();
+      hls.loadSource(src);
+      hls.attachMedia(video);
+
+      // quando o manifest estiver pronto, calcula THRESH e inicia loop
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        updateFakeThreshold();
+        startProgressLoop();
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = src;
+    }
+
+    // autoplay mudo
+    video.muted = true;
+    video.play().catch(() => {});
+
+    // quando metadata estiver pronta, recalcula THRESH e inicia loop
+    video.addEventListener('loadedmetadata', () => {
+      updateFakeThreshold();
+      startProgressLoop();
+    });
+
+    video.addEventListener('play', startProgressLoop);
+
+    function restartAndUnmute() {
+      try { video.pause(); } catch (e) {}
+      try { video.currentTime = 0; } catch (e) {}
+
+      resetProgress();
+
+      video.muted = false;
+      video.volume = 1;
+      video.play().catch(() => {});
+      overlay.classList.add('hidden');
+
+      updateFakeThreshold();
+    }
+
+    overlay.addEventListener('click', () => {
+      if (video.readyState >= 1) {
+        restartAndUnmute();
+      } else {
+        const onLoaded = () => {
+          video.removeEventListener('loadedmetadata', onLoaded);
+          restartAndUnmute();
+        };
+        video.addEventListener('loadedmetadata', onLoaded);
+      }
+    });
+  }
+</script>
+
+</body>
+</html>
